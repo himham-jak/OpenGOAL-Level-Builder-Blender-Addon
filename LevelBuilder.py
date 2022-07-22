@@ -454,7 +454,7 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
         print("-Backup of level-info.gc created")
         f = open(path+filename, 'a', encoding="utf-8")
         # write the contents
-        #f.writelines(contents)
+        f.writelines(contents)
         # close the file
         f.close()
         print("-level-info.gc updated.")
@@ -468,7 +468,7 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
         print("-Backup of game.gp created")
         f = open(path+filename, 'a', encoding="utf-8")
         # write the contents
-        #f.writelines(contents)
+        f.writelines(contents)
         # close the file
         f.close()
         print("-game.gp updated.")
