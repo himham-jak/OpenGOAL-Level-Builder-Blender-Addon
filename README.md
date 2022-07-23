@@ -1,6 +1,6 @@
 # OpenGOAL-Level-Builder-Blender-Addon
 
-This is an addon for Blender developed specifically to build custom levels for the current (add version number) distribution of OpenGOAL.
+This is an addon for Blender developed specifically to build custom levels for the current (v0.1.20) distribution of OpenGOAL.
 
 ## How to install
 
@@ -48,6 +48,8 @@ At the moment, nothing. They're a proof of concept soon to be implemented proper
 The final step in the opening of a custom level is not yet automated.
 
 After building and connecting, the level itself is loaded with `(bg-build)` as written in the `custom_levels` README that comes with OpenGOAL. When I automate this step, the previous step doesn't complete. Someone with more knowledge of the REPL can likely fix this.
+
+If you keep the Blender command line open when exporting, it will walk you through this final step.
 
 ## Known Issues
 
