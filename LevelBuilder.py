@@ -487,7 +487,7 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
             ")"
             ]
             
-        gp = '\n\n(build-custom-level "'+longtitle+'")\n'+'(custom-level-cgo "'+nick.upper()+'.DGO" "'+longtitle+'/'+title+'.gd")\n'
+        gp = '\n(build-custom-level "'+longtitle+'")\n'+'(custom-level-cgo "'+nick.upper()+'.DGO" "'+longtitle+'/'+title+'.gd")\n'
         
         # create gd
         path = newpath
@@ -600,7 +600,7 @@ def playtest_level(longtitle,newpath):
         #os.system('''start cmd @cmd /c "cd ..\Games\opengoal-v0.1.19-windows && gk -boot -fakeiso -debug" ''') # open the game in debug mode
         #os.system('''start cmd @cmd /k "cd ..\Games\opengoal-v0.1.19-windows && goalc --startup-cmd "(mi) (lt)"" ''') # open the repl, rebuild, and link to game
         os.system('''start cmd @cmd /c "cd '''+opengoalpath+''' && gk -boot -fakeiso -debug" ''') # open the game in debug mode
-        os.system('''start cmd @cmd /k "cd '''+opengoalpath+''' && goalc --startup-cmd "(mi) (lt)"" ''') # open the repl, rebuild, and link to game
+        os.system('''start cmd @cmd /k "cd '''+opengoalpath+''' && goalc --startup-cmd "(mi) (lt) (r)"" ''') # open the repl, rebuild, and link to game
         # run (bg-custom 'longtitle-vis) in the repl
         
         print("Message: Sorry, for now you'll have to run (ml \"goal_src/jak1/engine/level/level-info.gc\") and then (bg-custom '"+longtitle+"-vis) in goalc manually.\n")
