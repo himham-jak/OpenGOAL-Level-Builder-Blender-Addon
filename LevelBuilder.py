@@ -20,7 +20,7 @@ bl_info = {
 # ------------------------------------------------------------------------
 #    Includes
 # ------------------------------------------------------------------------
-import bpy, bmesh, os, re, shutil, math, fileinput
+import bpy, bmesh, os, re, shutil, math, fileinput, socket, struct, sys
 from bpy.app.handlers import persistent
 from bpy.props import (StringProperty,
                        BoolProperty,
@@ -38,7 +38,6 @@ from bpy.types import (Panel,
 from bpy.utils import previews
 from bpy_extras.object_utils import AddObjectHelper, object_data_add
 from mathutils import Vector
-
 
 # ------------------------------------------------------------------------
 #    Scene Properties
@@ -345,213 +344,246 @@ def show_message(message, title = "Message", icon = "INFO"):
     bpy.context.window_manager.popup_menu(draw, title = title, icon = icon)
 
 def update_files(task_count, current_task, should_export_level_info, should_export_actor_info, newpath, nick, longtitle, title):
+    
+    if not should_export_level_info:
+        return current_task
+    
+    print("Task ("+str(current_task)+"/"+str(task_count)+")")
+    
+    current_task += 1
+    print("Updating the necessary files.\n")
+    
+    # make the new folder
+    if not os.path.exists(newpath):
+        os.mkdir(newpath)
+        print("\tDirectory created.")
         
-        print("Task ("+str(current_task)+"/"+str(task_count)+")")
-        current_task += 1
-        print("Updating the necessary files.\n")
+    # save the blend file
+    bpy.ops.wm.save_as_mainfile(filepath=newpath+longtitle+'.blend')
+    
+    # make paths for game.gp and level-info.gc
+    gppath = os.path.dirname(os.path.dirname(os.path.dirname(newpath)))+"\\goal_src\\jak1\\"
+    gcpath = gppath+"engine\\level\\"
+    
+    gd = [
+        '("',
+        nick,
+        '.DGO"\n',
+        '  ("static-screen.o" "static-screen")\n',
+        '  ("',
+        longtitle,
+        '.go" "',
+        longtitle,
+        '")\n',
+        '  )'
+        ]
         
-        # make the new folder
-        if not os.path.exists(newpath):
-            os.mkdir(newpath)
-            print("-Directory created.")
+    jsonc = [
+        '{\n',
+        '  "long_name": "',
+        longtitle,
+        '",\n',
+        '  "iso_name": "',
+        title.upper(),
+        '",\n',
+        '  "nickname": "',
+        nick.upper(),
+        '", // 3 char name, all uppercase\n\n',
+        '  "gltf_file": "custom_levels/',
+        longtitle,
+        '/',
+        longtitle,
+        '.glb",\n',
+        '  "automatic_wall_detection": true,\n',
+        '  "automatic_wall_angle": 45.0,\n',
+        '  "actors" : [\n',
+        '    {\n',
+        '      "trans": [-21.6238, 20.0496, 17.1191], // translation\n',
+        '      "etype": "fuel-cell",  // actor type\n',
+        '      "game_task": 0, // associated game task (for powercells, etc)\n',
+        '      "quat" : [0, 0, 0, 1], // quaternion\n',
+        '      "bsphere": [-21.6238, 19.3496, 17.1191, 10], // bounding sphere\n',
+        '      "lump": {\n',
+        '        "name":"test-fuel-cell"\n',
+        '      }\n',
+        '    },\n\n',
+        '    {\n',
+        '      "trans": [-15.2818, 15.2461, 17.1360], // translation\n',
+        '      "etype": "crate",  // actor type\n',
+        '      "game_task": 0, // associated game task (for powercells, etc)\n',
+        '      "quat" : [0, 0, 0, 1], // quaternion\n',
+        '      "bsphere": [-15.2818, 15.2461, 17.1360, 10], // bounding sphere\n',
+        '      "lump": {\n',
+        '        "name":"test-crate",\n',
+        '        "crate-type":"\'steel",\n',
+        '        "eco-info": ["int32", 5, 10]\n',
+        '      }\n',
+        '    },\n\n',
+        '    {\n',
+        '      "trans": [-5.4630, 17.4553, 1.6169], // translation\n',
+        '      "etype": "eco-yellow",  // actor type\n',
+        '      "game_task": 0, // associated game task (for powercells, etc)\n',
+        '      "quat" : [0, 0, 0, 1], // quaternion\n',
+        '      "bsphere": [-5.4630, 17.4553, 1.6169, 10], // bounding sphere\n',
+        '      "lump": {\n',
+        '        "name":"test-eco"\n',
+        '      }\n',
+        '    }\n',
+        '  ]\n',
+        '}'
+        ]
         
-        # make paths for game.gp and level-info.gc
-        gppath = os.path.dirname(os.path.dirname(os.path.dirname(newpath)))+"\\goal_src\\jak1\\"
-        gcpath = gppath+"engine\\level\\"
+    readme = [
+        "test line 1\n",
+        "test line 2\n",
+        "test line 3"
+        ]
         
-        gd = [
-            '("',
-            nick,
-            '.DGO"\n',
-            '  ("static-screen.o" "static-screen")\n',
-            '  ("',
-            longtitle,
-            '.go" "',
-            longtitle,
-            '")\n',
-            '  )'
-            ]
-            
-        jsonc = [
-            '{\n',
-            '  "long_name": "',
-            longtitle,
-            '",\n',
-            '  "iso_name": "',
-            title.upper(),
-            '",\n',
-            '  "nickname": "',
-            nick.upper(),
-            '", // 3 char name, all uppercase\n\n',
-            '  "gltf_file": "custom_levels/',
-            longtitle,
-            '/',
-            longtitle,
-            '.glb",\n',
-            '  "automatic_wall_detection": true,\n',
-            '  "automatic_wall_angle": 45.0,\n',
-            '  "actors" : [\n',
-            '    {\n',
-            '      "trans": [-21.6238, 20.0496, 17.1191], // translation\n',
-            '      "etype": "fuel-cell",  // actor type\n',
-            '      "game_task": 0, // associated game task (for powercells, etc)\n',
-            '      "quat" : [0, 0, 0, 1], // quaternion\n',
-            '      "bsphere": [-21.6238, 19.3496, 17.1191, 10], // bounding sphere\n',
-            '      "lump": {\n',
-            '        "name":"test-fuel-cell"\n',
-            '      }\n',
-            '    },\n\n',
-            '    {\n',
-            '      "trans": [-15.2818, 15.2461, 17.1360], // translation\n',
-            '      "etype": "crate",  // actor type\n',
-            '      "game_task": 0, // associated game task (for powercells, etc)\n',
-            '      "quat" : [0, 0, 0, 1], // quaternion\n',
-            '      "bsphere": [-15.2818, 15.2461, 17.1360, 10], // bounding sphere\n',
-            '      "lump": {\n',
-            '        "name":"test-crate",\n',
-            '        "crate-type":"\'steel",\n',
-            '        "eco-info": ["int32", 5, 10]\n',
-            '      }\n',
-            '    },\n\n',
-            '    {\n',
-            '      "trans": [-5.4630, 17.4553, 1.6169], // translation\n',
-            '      "etype": "eco-yellow",  // actor type\n',
-            '      "game_task": 0, // associated game task (for powercells, etc)\n',
-            '      "quat" : [0, 0, 0, 1], // quaternion\n',
-            '      "bsphere": [-5.4630, 17.4553, 1.6169, 10], // bounding sphere\n',
-            '      "lump": {\n',
-            '        "name":"test-eco"\n',
-            '      }\n',
-            '    }\n',
-            '  ]\n',
-            '}'
-            ]
-            
-        readme = [
-            "test line 1\n",
-            "test line 2\n",
-            "test line 3"
-            ]
-            
-        gc = [
-            "\n\n(define ",
-            longtitle,
-            " (new 'static 'level-load-info\n",
-            "                           :index 26\n",
-            "                           :name '",
-            longtitle,
-            "\n                           :visname '",
-            longtitle,
-            "-vis ;; name + -vis\n",
-            "                           :nickname '",
-            nick,
-            "\n                           :packages '()\n",
-            "                           :sound-banks '()\n",
-            "                           :music-bank #f\n",
-            "                           :ambient-sounds '()\n",
-            "                           :mood '*default-mood*\n",
-            "                           :mood-func 'update-mood-default\n",
-            "                           :ocean #f\n",
-            "                           :sky #t\n",
-            "                           :continues '((new 'static 'continue-point\n",
-            "                                             :name \"",
-            longtitle,
-            "-start\"\n",
-            "                                             :level '",
-            longtitle,
-            "\n                                             :trans (new 'static 'vector :x 0.0 :y (meters 10.) :z (meters 10.) :w 1.0)\n",
-            "                                             :quat (new 'static 'quaternion  :w 1.0)\n",
-            "                                             :camera-trans (new 'static 'vector :x 0.0 :y 4096.0 :z 0.0 :w 1.0)\n",
-            "                                             :camera-rot (new 'static 'array float 9 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0)\n",
-            "                                             :load-commands '()\n",
-            "                                             :vis-nick 'none\n",
-            "                                             :lev0 '",
-            longtitle,
-            "\n                                             :disp0 'display\n",
-            "                                             :lev1 'village1\n",
-            "                                             :disp1 'display\n",
-            "                                             ))\n",
-            "                           :tasks '()\n",
-            "                           :priority 100\n",
-            "                           :load-commands '()\n",
-            "                           :alt-load-commands '()\n",
-            "                           :bsp-mask #xffffffffffffffff\n",
-            "                           :bsphere (new 'static 'sphere :w 167772160000.0)\n",
-            "                           :bottom-height (meters -20)\n",
-            "                           :run-packages '()\n",
-            "                           :wait-for-load #t\n",
-            "                           )\n",
-            "        )\n\n",
-            "(cons! *level-load-list* '",
-            longtitle,
-            ")"
-            ]
-            
-        gp = '\n(build-custom-level "'+longtitle+'")\n'+'(custom-level-cgo "'+nick.upper()+'.DGO" "'+longtitle+'/'+title+'.gd")\n'
+    gc = [
+        "\n\n(define ",
+        longtitle,
+        " (new 'static 'level-load-info\n",
+        "                           :index 26\n",
+        "                           :name '",
+        longtitle,
+        "\n                           :visname '",
+        longtitle,
+        "-vis ;; name + -vis\n",
+        "                           :nickname '",
+        nick,
+        "\n                           :packages '()\n",
+        "                           :sound-banks '()\n",
+        "                           :music-bank #f\n",
+        "                           :ambient-sounds '()\n",
+        "                           :mood '*default-mood*\n",
+        "                           :mood-func 'update-mood-default\n",
+        "                           :ocean #f\n",
+        "                           :sky #t\n",
+        "                           :continues '((new 'static 'continue-point\n",
+        "                                             :name \"",
+        longtitle,
+        "-start\"\n",
+        "                                             :level '",
+        longtitle,
+        "\n                                             :trans (new 'static 'vector :x 0.0 :y (meters 10.) :z (meters 10.) :w 1.0)\n",
+        "                                             :quat (new 'static 'quaternion  :w 1.0)\n",
+        "                                             :camera-trans (new 'static 'vector :x 0.0 :y 4096.0 :z 0.0 :w 1.0)\n",
+        "                                             :camera-rot (new 'static 'array float 9 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0)\n",
+        "                                             :load-commands '()\n",
+        "                                             :vis-nick 'none\n",
+        "                                             :lev0 '",
+        longtitle,
+        "\n                                             :disp0 'display\n",
+        "                                             :lev1 'village1\n",
+        "                                             :disp1 'display\n",
+        "                                             ))\n",
+        "                           :tasks '()\n",
+        "                           :priority 100\n",
+        "                           :load-commands '()\n",
+        "                           :alt-load-commands '()\n",
+        "                           :bsp-mask #xffffffffffffffff\n",
+        "                           :bsphere (new 'static 'sphere :w 167772160000.0)\n",
+        "                           :bottom-height (meters -20)\n",
+        "                           :run-packages '()\n",
+        "                           :wait-for-load #t\n",
+        "                           )\n",
+        "        )\n\n",
+        "(cons! *level-load-list* '",
+        longtitle,
+        ")"
+        ]
         
-        # create gd
-        path = newpath
-        filename = title+".gd"
-        contents = gd
-        if not os.path.exists(path+filename):
-            f = open(path+filename, 'w', encoding="utf-8")
-            # write the contents
-            f.writelines(contents)
-            # close the file
-            f.close()
-            print("-"+title+".gd created.")
-        else:
-            print("-"+title+".gd already exists, creation skipped.")
-            
-        # create jsonc
-        path = newpath
-        filename = longtitle+".jsonc"
-        contents = jsonc
-        if not os.path.exists(path+filename):
-            f = open(path+filename, 'w', encoding="utf-8")
-            # write the contents
-            f.writelines(contents)
-            # close the file
-            f.close()
-            print("-"+longtitle+".jsonc created.")
-        else:
-            print("-"+longtitle+".jsonc already exists, creation skipped.")
-            
-        # create readme
-        path = newpath
-        filename = "README.MD"
-        contents = readme
-        if not os.path.exists(path+filename):
-            f = open(path+filename, 'w', encoding="utf-8")
-            # write the contents
-            f.writelines(contents)
-            # close the file
-            f.close()
-            print("-README.MD created.")
-        else:
-            print("-README.MD already exists, creation skipped.")
+    gp = '\n(build-custom-level "'+longtitle+'")\n'+'(custom-level-cgo "'+nick.upper()+'.DGO" "'+longtitle+'/'+title+'.gd")\n'
+    
+    # create gd
+    path = newpath
+    filename = title+".gd"
+    contents = gd
+    if not os.path.exists(path+filename):
+        f = open(path+filename, 'w', encoding="utf-8")
+        # write the contents
+        f.writelines(contents)
+        # close the file
+        f.close()
+        print("\t"+filename+" created.")
+    else:
+        print("\t"+filename+" already exists, creation skipped.")
         
-        # create a backup and append new level to level-info.gc
-        path = gcpath
-        filename = "level-info.gc"
-        backupname = "level-info.bak"
-        contents = gc
+    # create jsonc
+    path = newpath
+    filename = longtitle+".jsonc"
+    contents = jsonc
+    if not os.path.exists(path+filename):
+        f = open(path+filename, 'w', encoding="utf-8")
+        # write the contents
+        f.writelines(contents)
+        # close the file
+        f.close()
+        print("\t"+filename+" created.")
+    else:
+        print("\t"+filename+" already exists, creation skipped.")
+        
+    # create readme
+    path = newpath
+    filename = "README.MD"
+    contents = readme
+    if not os.path.exists(path+filename):
+        f = open(path+filename, 'w', encoding="utf-8")
+        # write the contents
+        f.writelines(contents)
+        # close the file
+        f.close()
+        print("\t"+filename+" created.")
+    else:
+        print("\t"+filename+" already exists, creation skipped.")
+    
+    # create a backup and append new level to level-info.gc
+    path = gcpath
+    filename = "level-info.gc"
+    backupname = "level-info.bak"
+    contents = gc
+    needs_update = True
+    
+    # check level-info.gc for the level before adding it
+    f = open(path+filename, 'r', encoding="utf-8")
+    for line in f:
+        if longtitle in line:
+            needs_update = False
+    # close the file
+    f.close()
+    
+    if needs_update:    
         shutil.copyfile(path+filename,path+backupname)
-        print("-Backup of level-info.gc created")
+        print("\tBackup of level-info.gc created")
         f = open(path+filename, 'a', encoding="utf-8")
         # write the contents
         f.writelines(contents)
         # close the file
         f.close()
-        print("-level-info.gc updated.")
+        print("\t"+filename+" updated.")
+    else:
+        print("\t"+filename+" already contains the level, modification skipped.")
         
-        # create a backup and append new level to game.gp
-        path = gppath
-        filename = "game.gp"
-        backupname = "game.bak"
-        contents = gp
+    
+    
+    # create a backup and append new level to game.gp
+    path = gppath
+    filename = "game.gp"
+    backupname = "game.bak"
+    contents = gp
+    needs_update = True
+    
+    # check level-info.gc for the level before adding it
+    f = open(path+filename, 'r', encoding="utf-8")
+    for line in f:
+        if longtitle in line:
+            needs_update = False
+    # close the file
+    f.close()
+    
+    if needs_update:
         shutil.copyfile(path+filename,path+backupname)
-        print("-Backup of game.gp created")
+        print("\tBackup of game.gp created")
         
         match_string = "testzone.gd\")"
         with open(path+filename, 'r+') as f:
@@ -565,47 +597,87 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
                         break
             f.seek(0)
             f.writelines(current)
-            
-        print("-game.gp updated.")
+        print("\t"+filename+" updated.")
+    else:
+        print("\t"+filename+" already contains the level, modification skipped.")
         
-        print("\n--Done.\n")
-        
-        return current_task
+    print("\nDone.\n")
+    
+    return current_task
         
 def export_geometry(context, anchor, newpath, longtitle):
         
-        print("Exporting geometry.\n")
-        
-        if not os.path.exists(newpath+longtitle+".glb"):
-            bpy.ops.object.select_all(action='DESELECT') # deselect everything, probably not necessary
-            bpy.context.scene.objects[anchor].select_set(True) # select the anchor
-            bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE') # select the anchor's children
-            bpy.ops.export_scene.gltf( # actually export
-                filepath=newpath+longtitle+".glb",
-                use_selection=True # export only the selection
-            )
-            print("-"+longtitle+".glb created.\n")
-        else:
-            print("-"+longtitle+".glb already exists, creation skipped.\n")
-        
-        
-        print("--Done.\n")
+    print("Exporting geometry.\n")
+    
+    if not os.path.exists(newpath+longtitle+".glb"):
+        bpy.ops.object.select_all(action='DESELECT') # deselect everything, probably not necessary
+        bpy.context.scene.objects[anchor].select_set(True) # select the anchor
+        bpy.ops.object.select_grouped(type='CHILDREN_RECURSIVE') # select the anchor's children
+        bpy.ops.export_scene.gltf( # actually export
+            filepath=newpath+longtitle+".glb",
+            use_selection=True # export only the selection
+        )
+        print("\t"+longtitle+".glb created.\n")
+    else:
+        print("\t"+longtitle+".glb already exists, creation skipped.\n")
+    
+    
+    print("Done.\n")
         
 def playtest_level(longtitle,newpath):
         
-        print("Beginning playtest.\n")
+    print("Beginning playtest.\n")
+    
+    opengoalpath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(newpath))))
+    #print(opengoalpath)
+    #os.system('''start cmd @cmd /c "cd ..\Games\opengoal-v0.1.19-windows && gk -boot -fakeiso -debug" ''') # open the game in debug mode
+    #os.system('''start cmd @cmd /k "cd ..\Games\opengoal-v0.1.19-windows && goalc --startup-cmd "(mi) (lt)"" ''') # open the repl, rebuild, and link to game
+    #os.system('''start cmd @cmd /c "cd '''+opengoalpath+''' && gk -boot -fakeiso -debug" ''') # open the game in debug mode
+    #os.system('''start cmd @cmd /k "cd '''+opengoalpath+''' && goalc --startup-cmd "(mi) (lt) (r) (bg-custom \''''+longtitle+'''-vis)"" ''') # open the repl, rebuild, and link to game
+    #keyboard.write("Python is an amazing programming language.")
+    # run (bg-custom 'longtitle-vis) in the repl
+    #print("Message: Sorry, for now you'll have to run (bg-custom '"+longtitle+"-vis) in goalc manually.\n")
+
+    # create a socket
+    try: 
+        clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM);
+    except socket.error as e: 
+        print("Error creating socket: %s" % e)
+        return 0
+    
+    # establish a socket connection with the repl
+    # if no repl is open, try to open one and connect to it
+    try: 
+        clientSocket.connect(("127.0.0.1", 8181)) # "127.0.0.1", 8181 for repl by default
+    except socket.gaierror as e: 
+        print("Address-related error connecting to server: %s" % e)
+    except socket.error as e: 
+        print("Connection error: %s")
+        #print(e)
+        print("\tWe didn't find an open instance of goalc.")
+        print("\tAttempting to open one for you.")
+        os.system('''start cmd @cmd /k "cd '''+ opengoalpath +''' && goalc''') # open the repl
+        try: 
+            clientSocket.connect(("127.0.0.1", 8181)) # "127.0.0.1", 8181 for repl by default
+        except socket.gaierror as e: 
+            print("Address-related error connecting to server: %s" % e)
+        except socket.error as e: 
+            print("Connection error: %s")
+            #print(e)
+            print("\tWe didn't find an open instance of goalc. Exiting.")
+            return 0
         
-        opengoalpath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(newpath))))
-        print(opengoalpath)
-        #os.system('''start cmd @cmd /c "cd ..\Games\opengoal-v0.1.19-windows && gk -boot -fakeiso -debug" ''') # open the game in debug mode
-        #os.system('''start cmd @cmd /k "cd ..\Games\opengoal-v0.1.19-windows && goalc --startup-cmd "(mi) (lt)"" ''') # open the repl, rebuild, and link to game
-        os.system('''start cmd @cmd /c "cd '''+opengoalpath+''' && gk -boot -fakeiso -debug" ''') # open the game in debug mode
-        os.system('''start cmd @cmd /k "cd '''+opengoalpath+''' && goalc --startup-cmd "(mi) (lt) (r)"" ''') # open the repl, rebuild, and link to game
-        # run (bg-custom 'longtitle-vis) in the repl
-        
-        print("Message: Sorry, for now you'll have to run (ml \"goal_src/jak1/engine/level/level-info.gc\") and then (bg-custom '"+longtitle+"-vis) in goalc manually.\n")
-        
-        print("--Done.\n")
+    try: 
+        data = clientSocket.recv(33) # connection confirmation message is 33 symbols
+        print("\t"+data.decode())
+        form = "(bg-custom \'"+ longtitle +"-vis)"
+        header = struct.pack('<II', len(form), 10)
+        clientSocket.sendall(header + form.encode())
+        print("\tLevel sent to goalc. If it fails to open, make sure you have the game connected.")
+    except socket.error as e:
+        print ("Error sending data: %s" % e)
+
+    print("Done.\n")
         
 #delete
 class WM_OT_PrintActors(Operator):
@@ -685,7 +757,7 @@ class OBJECT_PT_ActorInfoPanel(Panel):
             # set these properties manually in the panel
             layout.prop(bpy.data.objects[bpy.context.object.data.name], '["Actor Type"]')
             layout.prop(bpy.data.objects[bpy.context.object.data.name], '["Game Task"]')
-            layout.prop(bpy.data.objects[bpy.context.object.data.name], '["Bounding Sphere"]')
+            layout.prop(bpy.data.objects[bpy.context.object.data.name], '["Bounding Sphere Radius"]')
             #layout.operator("wm.print") # this is a debug button to print all the current actors and their attributes before exporting
         else:
             layout.label(text="Select an actor to see its properties.", icon="ERROR")
@@ -1183,7 +1255,7 @@ class OBJECT_OT_add_object(Operator, AddObjectHelper):
         bpy.data.objects[bpy.context.object.data.name].rotation_mode = 'QUATERNION' # set rotation mode to quaternion
         bpy.data.objects[bpy.context.object.data.name]["Actor Type"] = "not implemented yet" # create custom property
         bpy.data.objects[bpy.context.object.data.name]["Game Task"] = 0 # create custom property
-        bpy.data.objects[bpy.context.object.data.name]["Bounding Sphere"] = (0.0,0.0,0.0) # create custom property
+        bpy.data.objects[bpy.context.object.data.name]["Bounding Sphere Radius"] = 10 # create custom property
         
         ''' #commenting this out because it messes with collections
         actor = bpy.data.objects[bpy.context.object.data.name] # rename duplicates in a less stupid way
