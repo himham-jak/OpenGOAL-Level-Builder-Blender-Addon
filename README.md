@@ -2,11 +2,15 @@
 
 # OpenGOAL-Level-Builder-Blender-Addon
 
-This is an addon for Blender 2.92 (may be compatible with other versions) developed specifically to build custom levels for the current (v0.1.20) distribution of <u>[OpenGoal](https://github.com/open-goal/jak-project/)</u>.
+README v1.1.0
+
+This is an addon for Blender 2.92 (may be compatible with other versions) developed specifically to build custom levels for the current (v0.1.21) distribution of <u>[OpenGoal](https://github.com/open-goal/jak-project/)</u> on Windows 10. It has not been tested with the launcher distribution.
 
 ## How to install
 
 Download `LevelBuilder.py`. Open Blender and navigate to `Edit > Preferences > Add-ons > Install` and select the file you downloaded. Check the box next to its name to enable the addon.
+
+If you have an older version of the addon, you need to remove it from the same menu and install the new one.
 
 ## How to build a level
 
@@ -30,34 +34,35 @@ When you're finished entering the details, you can select from several options h
 - All of these files are automatically updated upon export so that the level can be played.
 - New files associated with your level are created as well.
 - Files are checked before creating so as not to override any existing. Eventually, the user will be able to force overwrite.
-- Any files edited are backed up.
-- Playtesting boots the game in debug mode, opens the REPL and links the two together.
+- Any files edited are checked for content and backed up before editing.
+- Playtesting boots `(bg-custom)` in an open REPL (goalc) as long as its already connected to the game (gk).
 - Actors are added as a mesh.
-- Actors are assigned custom properties when they're added (i.e. "game task", "bounding sphere", etc).
+- Actors are assigned custom properties when they're added (i.e. "game task", "bounding sphere radius", etc).
+- Live input validation of all necessary fields
 
 ## Known Issues
 
--  Two steps in playtesting are not currently automated, as noted in the FAQ. When i automate reloading the `*level-load-list*`, the command doesn't pass with quotes, even if I use escape characters, so it fails. When I automate `(bg-custom)`, the `(lt)` step doesn't complete and so it fails. Someone with more knowledge of the REPL can likely fix these issues.
 - `.gbl` files can sometimes crash the game. This may be remedied by ensuring the cycles renderer is enabled before exporting, but I'm not certain. They also cannot be above a certain size, that size being unclear.
 - The code is somewhat ugly. It's well commented, but several sections need to be moved to different modules to improve readability. Most notably, the vertex data for the actor mesh, but also the document templates for file creation and other tasks.
-- The export README file doesn't say anything. I'm not sure if it needs to exist.
-- I probably don't properly unregister everything I need to
+- I probably don't properly unregister everything I need to.
 - The Edit Mode version of the panel is underutilized at best and program crashing at worst.
 
 ## What needs to be done in the future?
 
-- The last two steps in playtesting need to be automated.
-- `.glb` files need to be fully tested.
-- Modules need to be implemented.
-- Write/remove the export README.
-- Flesh out the `unregister()` function
+- `.glb` files need to be fully tested. Might add a renderer test before export.
+- Modules need to be implemented. (Splitting data and functions off into separate files for readability and futureproofing)
+- Flesh out the `unregister()` function.
 - More actor types need to be added.
-
 - Actor info exporting needs to be enabled.
 - A much deeper understanding of actor properties, that I don't have, needs to be implemented.
-- Exporting level info needs to check if game.gp and level-info.gc are already modified so it doesn't insert lines twice.
 - Selecting multiple actors should allow you to change all of their properties (except name) at once
 - Actors should be defined in one class with an attribute that distiguishes the types. At the moment they're the same class and one actor for all actor types. This pushes the boundaries of my knowledge of classes.
+- UI to add manual properties to actors
+- Actor translations need to be properly scaled
+- Potentially an overlay of the game geometry to allow precise positioning of both geometry and actors.
+- String formatting should be overhauled
+- Loading zone support
+- Path implementation
 
 ## FAQ
 
@@ -67,10 +72,8 @@ At the moment, nothing. They're a proof of concept soon to be implemented proper
 
 #### Why does my playtest start but doesn't enter the level?
 
-The final two steps in the playtesting a custom level are not yet automated.
+When you don't have the REPL and game open before playtesting, the addon tries to do this for you. It probably won't do it effectively. Playtesting is only the final step in the custom level implementation process. Have the appropriate steps taken before you try it.
 
-After building and connecting, the `*level-load-list*` needs to be updated to include your level. This is done by running `(ml \"goal_src/jak1/engine/level/level-info.gc\")` in goalc.
+#### Can you add _____?
 
-The level itself is then loaded with `(bg-custom '<YOUR-LEVEL-NAME-vis)` as written in the `custom_levels` <u>[README](https://github.com/open-goal/jak-project/blob/master/custom_levels/README.md)</u> that comes with OpenGOAL.
-
-If you keep Blender's system console open when exporting, it will walk you through these final steps.
+This tool implements automations for mods that are possible manually. If you can do it manually, send me your process and I will do my best to implement it. If it can't be done manually, this tool won't somehow be able do it.
