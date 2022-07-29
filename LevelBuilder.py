@@ -20,7 +20,7 @@ bl_info = {
 # ------------------------------------------------------------------------
 #    Includes
 # ------------------------------------------------------------------------
-import bpy, bmesh, os, re, shutil, math, fileinput, socket, struct, sys
+import bpy, bmesh, os, re, shutil, math, fileinput, socket, struct, sys, json
 from bpy.app.handlers import persistent
 from bpy.props import (StringProperty,
                        BoolProperty,
@@ -38,6 +38,11 @@ from bpy.types import (Panel,
 from bpy.utils import previews
 from bpy_extras.object_utils import AddObjectHelper, object_data_add
 from mathutils import Vector
+
+# this config file is not on a per level basis, it's the config for the addon itself so you don't have to enter everything again
+if os.path.exists("blender_goal_config.json"):
+    with open("blender_goal_config.json", "r") as f:
+        json_data = json.loads(f.read())
 
 # ------------------------------------------------------------------------
 #    Scene Properties
@@ -84,7 +89,7 @@ class MyProperties(PropertyGroup):
     custom_levels_path: StringProperty(
         name = "Custom Levels Path",
         description="The path to /custom_levels/ in the OpenGOAL distribution",
-        default="",
+        default=json_data["Custom Levels Path"],
         maxlen=1024,
         subtype='DIR_PATH'
         )
@@ -357,6 +362,15 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
     if not os.path.exists(newpath):
         os.mkdir(newpath)
         print("\tDirectory created.")
+    
+    # save the custom levels path so it doesn't have to be retyped
+    with open("blender_goal_config.json", "r+") as f:
+        file = f.read()
+        json_data = json.loads(file)
+        json_data["Custom Levels Path"]=os.path.dirname(os.path.dirname(newpath))+"\\"
+        f.seek(0)
+        f.truncate()
+        json.dump(json_data, f)
         
     # save the blend file
     bpy.ops.wm.save_as_mainfile(filepath=newpath+longtitle+'.blend')
@@ -563,8 +577,6 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
         print("\t"+filename+" updated.")
     else:
         print("\t"+filename+" already contains the level, modification skipped.")
-        
-    
     
     # create a backup and append new level to game.gp
     path = gppath
