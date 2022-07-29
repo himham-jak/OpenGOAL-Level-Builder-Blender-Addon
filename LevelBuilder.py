@@ -43,6 +43,9 @@ from mathutils import Vector
 if os.path.exists("blender_goal_config.json"):
     with open("blender_goal_config.json", "r") as f:
         json_data = json.loads(f.read())
+else:
+    with open("blender_goal_config.json", "w") as f:
+        f.write('{"Custom Levels Path": ""}')
 
 # ------------------------------------------------------------------------
 #    Scene Properties
@@ -124,6 +127,8 @@ class MyProperties(PropertyGroup):
         default="my-actor",
         maxlen=1024,
         )
+        
+        
         
     actor_type: EnumProperty(
         name="Actor Type",
@@ -223,7 +228,7 @@ class MyProperties(PropertyGroup):
                 ('ropebridge', 'Rope Bridge', ''),
                ]
         )
-        
+
     actor_location: FloatVectorProperty(
         name = "Actor Location",
         description="The location in 3d space to place your object (actor).\nDefault: -21.6238,20.0496,17.1191",
@@ -239,25 +244,6 @@ class MyProperties(PropertyGroup):
         min= 0.0,
         max = 1.0
         )
-        
-    # In the future, it would be nice to select the level name and automatically receive the game_task number
-    game_task: IntProperty( 
-        name = "Game Task",
-        description="Correct me if I'm wrong\nThe level number associated with the actor\nDefault: 0",
-        default = 0,
-        min = 0,
-        max = 100
-        )
-        
-    bounding_sphere: FloatVectorProperty(
-        name = "Bounding Sphere",
-        description="I'm not entirely sure what this is.\nDefault: -21.6238, 19.3496, 17.1191, 10",
-        default=(0.0, 0.0, 0.0), 
-        min= 0.0,
-        max = 25.0
-        )
-        
-        
     
     # unused properties
 
@@ -351,6 +337,49 @@ def show_message(message, title = "Message", icon = "INFO"):
         self.layout.label(text = message)
         
     bpy.context.window_manager.popup_menu(draw, title = title, icon = icon)
+    
+def return_actor_block(actor_name, actor_type, actor_location, actor_rotation, game_task, bsphere_radius):
+
+    return [
+        '    {\n',
+        '      "trans": [',
+        str(actor_location[0]),
+        ', ',
+        str(-actor_location[2]),
+        ', ',
+        str(actor_location[1]),
+        '],\n',
+        '      "etype": "',
+        actor_type,
+        '",\n',
+        '      "game_task": ',
+        str(game_task),
+        ',\n',
+        '      "quat" : [',
+        str(actor_rotation[0]),
+        ', ',
+        str(actor_rotation[1]),
+        ', ',
+        str(actor_rotation[2]),
+        ', ',
+        str(actor_rotation[3]),
+        '],\n',
+        '      "bsphere": [',
+        str(actor_location[0]),
+        ', ',
+        str(-actor_location[2]),
+        ', ',
+        str(actor_location[1]),
+        ', ',
+        str(bsphere_radius),
+        '],\n',
+        '      "lump": {\n',
+        '        "name":"',
+        actor_name,
+        '",\n',
+        '      }\n',
+        '    },\n\n',
+        ]
 
 def update_files(task_count, current_task, should_export_level_info, should_export_actor_info, newpath, nick, longtitle, title):
     
@@ -414,39 +443,10 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
         '.glb",\n',
         '  "automatic_wall_detection": true,\n',
         '  "automatic_wall_angle": 45.0,\n',
-        '  "actors" : [\n',
-        '    {\n',
-        '      "trans": [-21.6238, 20.0496, 17.1191], // translation\n',
-        '      "etype": "fuel-cell",  // actor type\n',
-        '      "game_task": 0, // associated game task (for powercells, etc)\n',
-        '      "quat" : [0, 0, 0, 1], // quaternion\n',
-        '      "bsphere": [-21.6238, 19.3496, 17.1191, 10], // bounding sphere\n',
-        '      "lump": {\n',
-        '        "name":"test-fuel-cell"\n',
-        '      }\n',
-        '    },\n\n',
-        '    {\n',
-        '      "trans": [-15.2818, 15.2461, 17.1360], // translation\n',
-        '      "etype": "crate",  // actor type\n',
-        '      "game_task": 0, // associated game task (for powercells, etc)\n',
-        '      "quat" : [0, 0, 0, 1], // quaternion\n',
-        '      "bsphere": [-15.2818, 15.2461, 17.1360, 10], // bounding sphere\n',
-        '      "lump": {\n',
-        '        "name":"test-crate",\n',
-        '        "crate-type":"\'steel",\n',
-        '        "eco-info": ["int32", 5, 10]\n',
-        '      }\n',
-        '    },\n\n',
-        '    {\n',
-        '      "trans": [-5.4630, 17.4553, 1.6169], // translation\n',
-        '      "etype": "eco-yellow",  // actor type\n',
-        '      "game_task": 0, // associated game task (for powercells, etc)\n',
-        '      "quat" : [0, 0, 0, 1], // quaternion\n',
-        '      "bsphere": [-5.4630, 17.4553, 1.6169, 10], // bounding sphere\n',
-        '      "lump": {\n',
-        '        "name":"test-eco"\n',
-        '      }\n',
-        '    }\n',
+        '  "actors" : [\n'
+        ]
+        
+    jsonc_end = [
         '  ]\n',
         '}'
         ]
@@ -535,8 +535,18 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
         f = open(path+filename, 'w', encoding="utf-8")
         # write the contents
         f.writelines(contents)
+        
+        contents = []
+        
+        for actor in bpy.data.collections['actor_collection'].all_objects:
+            contents+=return_actor_block(actor.name, actor["Actor Type"], actor.location, actor.rotation_quaternion, actor["Game Task"], actor["Bounding Sphere Radius"])
+        f.writelines(contents)
+        
+        contents = jsonc_end
+        f.writelines(contents)
         # close the file
         f.close()
+        
         print("\t"+filename+" created.")
     else:
         print("\t"+filename+" already exists, creation skipped.")
@@ -888,8 +898,12 @@ class EDIT_PT_ActorInfoPanel(Panel):
 # ------------------------------------------------------------------------       
 
 actor_types = [
-                ["Precursor Orb","orb"],
-                ["Power Cell","cell"]
+                ["Precursor Orb","money"],
+                ["Power Cell","fuel-cell"],
+                ["Green Eco","greeneco"],
+                ["Blue Eco","blueeco"],
+                ["Yellow Eco","yelloweco"], 
+                ["Red Eco","redeco"],
             ]
 
 def add_object(self, context, actor_type):
@@ -1281,6 +1295,8 @@ class OBJECT_OT_add_object(Operator, AddObjectHelper):
     bl_idname = "mesh.add_object"
     bl_label = "Add Mesh Object"
     bl_options = {'REGISTER', 'UNDO'}
+    
+    actor_type = bpy.props.StringProperty(default="orb")
 
     scale: FloatVectorProperty(
         name="scale",
@@ -1290,16 +1306,17 @@ class OBJECT_OT_add_object(Operator, AddObjectHelper):
     )
 
     def execute(self, context):
+        
+        print(self.actor_type)
 
         add_object(self, context, "Actor") # create the actor
         bpy.context.active_object.rotation_euler[0] = math.radians(90) # fix the rotation
         bpy.data.objects[bpy.context.object.data.name].active_material = bpy.data.materials.new("Color") # create a material
         bpy.data.objects[bpy.context.object.data.name].active_material.diffuse_color = (178/225,113/225,0,1) # add color
 
-        actor_collection = bpy.data.collections.new('actor_collection') # create a collection to house the actors
-        actor_collection.objects.link(bpy.data.objects[bpy.context.object.data.name]) # add the actor to a collection
+        bpy.data.collections['actor_collection'].objects.link(bpy.data.objects[bpy.context.object.data.name]) # add the actor to a collection
         bpy.data.objects[bpy.context.object.data.name].rotation_mode = 'QUATERNION' # set rotation mode to quaternion
-        bpy.data.objects[bpy.context.object.data.name]["Actor Type"] = "not implemented yet" # create custom property
+        bpy.data.objects[bpy.context.object.data.name]["Actor Type"] = self.actor_type # create custom property
         bpy.data.objects[bpy.context.object.data.name]["Game Task"] = 0 # create custom property
         bpy.data.objects[bpy.context.object.data.name]["Bounding Sphere Radius"] = 10 # create custom property
         
@@ -1315,10 +1332,12 @@ class OBJECT_OT_add_object(Operator, AddObjectHelper):
 # add buttons for the new meshes
 def add_object_button(self, context):
     for actor_type in actor_types:
-        self.layout.operator(
+        op=self.layout.operator(
             OBJECT_OT_add_object.bl_idname,
             text=actor_type[0],
-            icon_value=custom_icons[actor_type[1]].icon_id)
+            #icon_value=custom_icons[actor_type[1]].icon_id,
+            )
+        op.actor_type = actor_type[1]
 
 # This allows you to right click on a button and link to documentation
 def add_object_manual_map():
@@ -1370,10 +1389,12 @@ def register():
                 "greeneco",
                 "blueeco",
                 "yelloweco",
-                "redeco"
+                "redeco",
                 ]
     for icon in icon_list:
         custom_icons.load(icon, os.path.join(icons_dir, icon+".png"), 'IMAGE')
+        
+    actor_collection = bpy.data.collections.new('actor_collection') # create a collection to house the actors
 
 def unregister():
     # Unregister custom UI
