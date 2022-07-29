@@ -10,7 +10,7 @@ bl_info = {
     "name": "OpenGOAL Custom Level Builder",
     "description": "modified from https://gist.github.com/p2or/2947b1aa89141caae182526a8fc2bc5a and https://github.com/blender/blender/blob/master/release/scripts/templates_py/addon_add_object.py",
     "author": "himham",
-    "version": (1, 0, 1),
+    "version": (1, 1, 0),
     "blender": (2, 92, 0),
     "location": "3D View > Level Info",
     "warning": "",
@@ -304,6 +304,10 @@ class WM_OT_Export(Operator):
         
         if mytool.custom_levels_path == "": # can't be empty
             show_message("Custom Levels Path cannot be empty","Error","ERROR")
+            return {'CANCELLED'}
+        
+        if not os.path.dirname(mytool.custom_levels_path)[-19:] == "\data\custom_levels": # check dir and parent dir are correct
+            show_message("Custom Levels Path seems incorrect","Error","ERROR")
             return {'CANCELLED'}
 
         # create values needed to make files
@@ -724,14 +728,44 @@ class OBJECT_PT_LevelInfoPanel(Panel):
         scene = context.scene
         mytool = scene.my_tool
         
+        '''
+        if not bool(re.match("^[A-Za-z-]*$", mytool.level_title)): # should have only letters and dashes
+            show_message("Level Title can only contain letters and dashes","Error","ERROR")
+            return {'CANCELLED'}
+        
+        if not bool(re.match("^[A-Za-z]*$", mytool.level_nickname)): # should have only letters
+            show_message("Level Nickname can only contain letters","Error","ERROR")
+            return {'CANCELLED'}
+        
+        if (mytool.anchor == "") & mytool.should_export_geometry:
+            show_message("Anchor cannot be empty if exporting geometry","Error","ERROR")
+            return {'CANCELLED'}
+        
+        if mytool.custom_levels_path == "": # can't be empty
+            show_message("Custom Levels Path cannot be empty","Error","ERROR")
+            return {'CANCELLED'}
+        '''
 
+        # live input validation
+        title = layout.row()
+        if not (bool(re.match("^[A-Za-z-]*$", mytool.level_title)) and mytool.level_title):
+            title.alert = True
+        nick = layout.row()
+        if not (bool(re.match("^[A-Za-z]*$", mytool.level_nickname)) and mytool.level_nickname):
+            nick.alert = True
+        path = layout.row()
+        if not mytool.custom_levels_path:
+            path.alert = True
+        if not os.path.dirname(mytool.custom_levels_path)[-19:] == "\data\custom_levels":
+            path.alert = True
+            
         # set these properties manually
-        layout.prop(mytool, "level_title", icon="TEXT") # validate not in list? "training","village1","beach","jungle","jungleb","misty","firecanyon","village2","sunken","sunkenb","swamp","rolling","ogre","village3","snow","maincave","darkcave","robocave","lavatube","citadel","finalboss","intro","demo","title","halfpipe","default-level"
-        layout.prop(mytool, "level_nickname", icon="TEXT")
+        title.prop(mytool, "level_title", icon="TEXT") # validate not in list? "training","village1","beach","jungle","jungleb","misty","firecanyon","village2","sunken","sunkenb","swamp","rolling","ogre","village3","snow","maincave","darkcave","robocave","lavatube","citadel","finalboss","intro","demo","title","halfpipe","default-level"
+        nick.prop(mytool, "level_nickname", icon="TEXT")
         layout.prop_search(mytool, "anchor", scene, "objects", icon="EMPTY_AXIS")
         layout.prop(mytool, "level_location", text="Level Location*")
         layout.prop(mytool, "level_rotation", text="Level Rotation*")
-        layout.prop(mytool, "custom_levels_path")
+        path.prop(mytool, "custom_levels_path")
         layout.prop(mytool, "should_export_level_info")
         layout.prop(mytool, "should_export_actor_info", text="Actor Info*")
         layout.prop(mytool, "should_export_geometry", )
