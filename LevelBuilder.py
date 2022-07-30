@@ -10,7 +10,7 @@ bl_info = {
     "name": "OpenGOAL Custom Level Builder",
     "description": "modified from https://gist.github.com/p2or/2947b1aa89141caae182526a8fc2bc5a and https://github.com/blender/blender/blob/master/release/scripts/templates_py/addon_add_object.py",
     "author": "himham",
-    "version": (1, 1, 0),
+    "version": (1, 2, 0),
     "blender": (2, 92, 0),
     "location": "3D View > Level Info",
     "warning": "",
@@ -73,12 +73,10 @@ class MyProperties(PropertyGroup):
         maxlen=1024,
         )
         
-    level_location: FloatVectorProperty(
-        name = "Level Location",
-        description="The location in 3d space to place your custom level.\nDefault: 0,0,0",
-        default=(0.0, 0.0, 0.0), 
-        min= 0.0,
-        max = 1.0
+    spawn_location: FloatVectorProperty(
+        name = "Spawn Location",
+        description="The location in 3d space to place Jak.\nDefault: 0,0,0",
+        default=(0.0, 0.0, 0.0),
         )
         
     level_rotation: FloatVectorProperty(
@@ -265,6 +263,48 @@ class MyProperties(PropertyGroup):
 #    Operators
 # ------------------------------------------------------------------------
     
+class WM_OT_World_Ref(Operator):
+    bl_label = "Create World Reference*"
+    bl_idname = "wm.create_world_reference"
+    bl_description = "Imports the game's level models so that you can position your level within the world."
+
+    def execute(self, context):
+        scene = context.scene
+        mytool = scene.my_tool
+        
+        # check that debug_out folder is populated with objs
+        # run batch import
+        # put the location to the folder where the objs are located here in this fashion
+        
+        path_to_obj_dir = os.path.dirname(os.path.dirname(mytool.custom_levels_path))+"\\debug_out\\"
+        
+        # get list of all files in directory
+        file_list = sorted(os.listdir(path_to_obj_dir))
+
+        # get a list of files ending in 'obj'
+        obj_list = [item for item in file_list if item.endswith('.obj')]
+        
+        # check if it's empty and throw an error
+        if obj_list == []:
+            show_message("You don't seem to have extracted the level geometry from the game. Try turning on the levels_convert_to_obj option in the decompiler config and extracting from your iso again.","Error","ERROR")
+            return {'CANCELLED'}
+        
+        # create an anchor for the world geometry
+        bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
+        anchor = bpy.context.object
+        anchor.name = "World Geometry"
+
+        # loop through the strings in obj_list and add the files to the scene
+        for item in obj_list:
+            path_to_file = os.path.join(path_to_obj_dir, item)
+            bpy.ops.import_scene.obj(filepath = path_to_file)
+            bpy.context.scene.objects[item[:-4]].parent = anchor # parent them to the anchor
+            
+        # scale up by 16
+        anchor.scale=(16,16,16)
+        
+        return {'FINISHED'}
+        
 class WM_OT_Export(Operator):
     bl_label = "Export"
     bl_idname = "wm.export"
@@ -310,7 +350,7 @@ class WM_OT_Export(Operator):
         current_task = 1
         
         # update level info and actor info if needed
-        current_task = update_files(task_count, current_task, mytool.should_export_level_info, mytool.should_export_actor_info, newpath, nick, longtitle, title)
+        current_task = update_files(task_count, current_task, mytool.should_export_level_info, mytool.should_export_actor_info, newpath, nick, longtitle, title, mytool.spawn_location)
         
         # export the geometry
         # may need to update renderer to cycles before exporting, just in case. make sure to notify user.
@@ -345,7 +385,7 @@ def return_actor_block(actor_name, actor_type, actor_location, actor_rotation, g
         '      "trans": [',
         str(actor_location[0]),
         ', ',
-        str(-actor_location[2]),
+        str(actor_location[2]),
         ', ',
         str(actor_location[1]),
         '],\n',
@@ -367,7 +407,7 @@ def return_actor_block(actor_name, actor_type, actor_location, actor_rotation, g
         '      "bsphere": [',
         str(actor_location[0]),
         ', ',
-        str(-actor_location[2]),
+        str(actor_location[2]),
         ', ',
         str(actor_location[1]),
         ', ',
@@ -376,12 +416,12 @@ def return_actor_block(actor_name, actor_type, actor_location, actor_rotation, g
         '      "lump": {\n',
         '        "name":"',
         actor_name,
-        '",\n',
+        '"\n',
         '      }\n',
-        '    },\n\n',
+        '    }',
         ]
 
-def update_files(task_count, current_task, should_export_level_info, should_export_actor_info, newpath, nick, longtitle, title):
+def update_files(task_count, current_task, should_export_level_info, should_export_actor_info, newpath, nick, longtitle, title, spawn):
     
     if not should_export_level_info:
         return current_task
@@ -483,7 +523,13 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
         "-start\"\n",
         "                                             :level '",
         longtitle,
-        "\n                                             :trans (new 'static 'vector :x 0.0 :y (meters 10.) :z (meters 10.) :w 1.0)\n",
+        "\n                                             :trans (new 'static 'vector :x (meters ",
+        str(spawn[0]),
+        ") :y (meters ",
+        str(spawn[2]+5),
+        ") :z (meters ",
+        str(spawn[1]),
+        ",) :w 1.0)\n",
         "                                             :quat (new 'static 'quaternion  :w 1.0)\n",
         "                                             :camera-trans (new 'static 'vector :x 0.0 :y 4096.0 :z 0.0 :w 1.0)\n",
         "                                             :camera-rot (new 'static 'array float 9 1.0 0.0 0.0 0.0 1.0 0.0 0.0 0.0 1.0)\n",
@@ -537,9 +583,15 @@ def update_files(task_count, current_task, should_export_level_info, should_expo
         f.writelines(contents)
         
         contents = []
+        commas = len(bpy.data.collections['actor_collection'].all_objects)
         
         for actor in bpy.data.collections['actor_collection'].all_objects:
             contents+=return_actor_block(actor.name, actor["Actor Type"], actor.location, actor.rotation_quaternion, actor["Game Task"], actor["Bounding Sphere Radius"])
+            if commas>1:
+                contents+=",\n\n"
+                commas-=1
+            else:
+                contents+="\n\n"
         f.writelines(contents)
         
         contents = jsonc_end
@@ -737,24 +789,6 @@ class OBJECT_PT_LevelInfoPanel(Panel):
         layout = self.layout
         scene = context.scene
         mytool = scene.my_tool
-        
-        '''
-        if not bool(re.match("^[A-Za-z-]*$", mytool.level_title)): # should have only letters and dashes
-            show_message("Level Title can only contain letters and dashes","Error","ERROR")
-            return {'CANCELLED'}
-        
-        if not bool(re.match("^[A-Za-z]*$", mytool.level_nickname)): # should have only letters
-            show_message("Level Nickname can only contain letters","Error","ERROR")
-            return {'CANCELLED'}
-        
-        if (mytool.anchor == "") & mytool.should_export_geometry:
-            show_message("Anchor cannot be empty if exporting geometry","Error","ERROR")
-            return {'CANCELLED'}
-        
-        if mytool.custom_levels_path == "": # can't be empty
-            show_message("Custom Levels Path cannot be empty","Error","ERROR")
-            return {'CANCELLED'}
-        '''
 
         # live input validation
         title = layout.row()
@@ -763,6 +797,12 @@ class OBJECT_PT_LevelInfoPanel(Panel):
         nick = layout.row()
         if not (bool(re.match("^[A-Za-z]*$", mytool.level_nickname)) and mytool.level_nickname):
             nick.alert = True
+        anch = layout.row()
+        if (mytool.should_export_geometry and not mytool.anchor): # live input validation fails, no idea why
+            anch.alert = True
+        trans = layout.column()
+        if not mytool.anchor:
+            trans.active = False
         path = layout.row()
         if not mytool.custom_levels_path:
             path.alert = True
@@ -772,16 +812,18 @@ class OBJECT_PT_LevelInfoPanel(Panel):
         # set these properties manually
         title.prop(mytool, "level_title", icon="TEXT") # validate not in list? "training","village1","beach","jungle","jungleb","misty","firecanyon","village2","sunken","sunkenb","swamp","rolling","ogre","village3","snow","maincave","darkcave","robocave","lavatube","citadel","finalboss","intro","demo","title","halfpipe","default-level"
         nick.prop(mytool, "level_nickname", icon="TEXT")
-        layout.prop_search(mytool, "anchor", scene, "objects", icon="EMPTY_AXIS")
-        layout.prop(mytool, "level_location", text="Level Location*")
-        layout.prop(mytool, "level_rotation", text="Level Rotation*")
+        anch.prop_search(mytool, "anchor", scene, "objects", icon="EMPTY_AXIS")
+        trans.prop(mytool, "spawn_location", text="Spawn Location*")
+        trans.prop(bpy.context.scene.objects[mytool.anchor], "location", text = "Anchor Location*") # breaks when no anchor is selected
+        #trans.prop(mytool, "level_rotation", text="Level Rotation*")
+        anch.operator("wm.create_world_reference")
         path.prop(mytool, "custom_levels_path")
         layout.prop(mytool, "should_export_level_info")
         layout.prop(mytool, "should_export_actor_info", text="Actor Info*")
         layout.prop(mytool, "should_export_geometry", )
         layout.prop(mytool, "should_playtest_level")
         layout.operator("wm.export")
-        layout.label(text="Options with * do not currently export.", icon="ERROR")
+        layout.label(text="Options with * do not currently export/function.", icon="ERROR")
         layout.separator()
         
 class OBJECT_PT_ActorInfoPanel(Panel):
@@ -801,7 +843,7 @@ class OBJECT_PT_ActorInfoPanel(Panel):
         scene = context.scene
         mytool = scene.my_tool
         
-        if "Game Task" in bpy.data.objects[bpy.context.object.data.name].keys(): # only check for custom properties on actors, not other objects
+        if (bpy.context.object.data is not None) and ("Game Task" in bpy.context.object.data.keys()): # only check for custom properties on actors, not other objects
             layout.prop(context.active_object, "name", text = "Actor Name")
             layout.prop(mytool, "actor_type") # dummy
             layout.prop(context.active_object, "type")
@@ -1311,6 +1353,8 @@ class OBJECT_OT_add_object(Operator, AddObjectHelper):
 
         add_object(self, context, "Actor") # create the actor
         bpy.context.active_object.rotation_euler[0] = math.radians(90) # fix the rotation
+        if not 'actor_collection' in bpy.data.collections: # check if there is already a collection of actors
+            actor_collection = bpy.data.collections.new('actor_collection') # create a collection to house the actors
         bpy.data.objects[bpy.context.object.data.name].active_material = bpy.data.materials.new("Color") # create a material
         bpy.data.objects[bpy.context.object.data.name].active_material.diffuse_color = (178/225,113/225,0,1) # add color
 
@@ -1353,6 +1397,7 @@ def add_object_manual_map():
 
 classes = (
     MyProperties,
+    WM_OT_World_Ref,
     WM_OT_Export,
     OBJECT_PT_LevelInfoPanel,
     EDIT_PT_LevelInfoPanel,
@@ -1393,8 +1438,6 @@ def register():
                 ]
     for icon in icon_list:
         custom_icons.load(icon, os.path.join(icons_dir, icon+".png"), 'IMAGE')
-        
-    actor_collection = bpy.data.collections.new('actor_collection') # create a collection to house the actors
 
 def unregister():
     # Unregister custom UI
