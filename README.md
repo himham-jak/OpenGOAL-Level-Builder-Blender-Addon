@@ -42,7 +42,7 @@ When you're finished entering the details, you can select from several options h
 
 ## Known Issues
 
-- `.gbl` files can sometimes crash the game. This may be remedied by ensuring the cycles renderer is enabled before exporting, but I'm not certain. They also cannot be above a certain size, that size being unclear.
+- `.glb` files can sometimes crash the game. This may be remedied by ensuring the cycles renderer is enabled before exporting, but I'm not certain. They also cannot be above a certain size, that size being unclear.
 - The code is somewhat ugly. It's well commented, but several sections need to be moved to different modules to improve readability. Most notably, the vertex data for the actor mesh, but also the document templates for file creation and other tasks.
 - I probably don't properly unregister everything I need to.
 - The Edit Mode version of the panel is underutilized at best and program crashing at worst.
